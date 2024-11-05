@@ -1,6 +1,7 @@
 ﻿using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace MinViz2024
@@ -49,7 +50,7 @@ namespace MinViz2024
             var sectors = new List<Algo.Sector>();
 
             // points
-            var points = new List<Vector3>();
+            var points = new Dictionary<int, List<Vector3>>();
 
             while (!Raylib.WindowShouldClose())
             {
@@ -68,7 +69,9 @@ namespace MinViz2024
                 }
 
                 for (int i = 0; i < points.Count; i++) {
-                    Raylib.DrawSphere(points[i], radius, Color.Blue);
+                    for (int j = 0; j < points[i].Count; j++){
+                        Raylib.DrawSphere(points[i][j], radius, Color.Blue);
+                    }
                 }
 
                 Raylib.EndMode3D();
@@ -154,18 +157,21 @@ namespace MinViz2024
                     if (ImGui.Button("Add Sector"))
                     {
                         sectors.Add(new Algo.Sector(Vector3.Zero, new Vector3(1, 1, 1)));
+                        points.Add(sectors.Count - 1, new List<Vector3>());
                     }
 
                     if (ImGui.Button("Remove Sector") && sectors.Count > 0)
                     {
+                        int remIdx = sectors.Count - 1;
                         sectors.RemoveAt(sectors.Count - 1);
+                        points.Remove(remIdx);
                     }
 
                     ImGui.InputInt("Selected Sector", ref selectedSector);
                     ImGui.InputInt("Number of Points", ref numberOfPoints);
                     if (ImGui.Button("Generate Points") && selectedSector > -1 && selectedSector < sectors.Count && numberOfPoints > 0)
                     {
-                        points.AddRange(sectors[selectedSector].CreateRandomPositions(numberOfPoints));
+                        points[selectedSector].AddRange(sectors[selectedSector].CreateRandomPositions(numberOfPoints));
                     }
                 }
                 ImGui.End();
