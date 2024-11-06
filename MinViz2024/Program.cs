@@ -1,7 +1,6 @@
 ﻿using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
-using System.Collections.Generic;
 using System.Numerics;
 
 namespace MinViz2024
@@ -28,7 +27,7 @@ namespace MinViz2024
                 Projection = CameraProjection.Perspective
             };
 
-            float radius = 0.025f;
+            float radius = 0.04f;
 
             rlImGui.Setup(true);
 
@@ -45,12 +44,17 @@ namespace MinViz2024
             bool showGrid = true;
             int selectedSector = 0;
             int numberOfPoints = 0;
+            int Seed = new Random().Next();
 
             // sectors
             var sectors = new List<Algo.Sector>();
+            var selected = new List<bool>();
 
             // points
             var points = new Dictionary<int, List<Vector3>>();
+
+            // algos
+            var selectedAlgos = new bool[2] { false, false };
 
             while (!Raylib.WindowShouldClose())
             {
@@ -61,16 +65,16 @@ namespace MinViz2024
                 Raylib.BeginMode3D(camera);
 
                 if (showGrid) {
-                    Raylib.DrawGrid(50, 1.0f);
+                    Raylib.DrawGrid(25, 1.0f);
                 }
 
                 for (int i = 0; i < sectors.Count; i++) {
-                    Raylib.DrawCubeWiresV(sectors[i].Center, sectors[i].Size, Color.Yellow);
+                    Raylib.DrawCubeWiresV(sectors[i].Center, sectors[i].Size, selected[i] ? Color.Magenta : Color.Yellow);
                 }
 
                 for (int i = 0; i < points.Count; i++) {
                     for (int j = 0; j < points[i].Count; j++){
-                        Raylib.DrawSphere(points[i][j], radius, Color.Blue);
+                        Raylib.DrawSphere(points[i][j], radius, selected[i] ? Color.Gold : Color.Blue);
                     }
                 }
 
@@ -108,10 +112,11 @@ namespace MinViz2024
                     {
                         if (Raylib.IsKeyDown(KeyboardKey.Right)) camera.Position.X += 0.1f;
                         if (Raylib.IsKeyDown(KeyboardKey.Left)) camera.Position.X -= 0.1f;
+                        if (Raylib.IsKeyDown(KeyboardKey.Up)) camera.FovY -= 0.1f;
+                        if (Raylib.IsKeyDown(KeyboardKey.Down)) camera.FovY += 0.1f;
                     }
                 }
                 ImGui.End();
-
 
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(screenWidth - 310, 170), ImGuiCond.FirstUseEver);
@@ -139,7 +144,6 @@ namespace MinViz2024
                 }
                 ImGui.End();
 
-
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 170), ImGuiCond.FirstUseEver);
                 ImGui.SetNextWindowSize(new Vector2(450, 400), ImGuiCond.FirstUseEver);
@@ -148,30 +152,68 @@ namespace MinViz2024
 
                 if (ImGui.Begin("Algorithm Controls", ref isAlgorithmControlOpen, controlFlags))
                 {
+                    ImGui.SeparatorText("Sector Control");
                     for (int i = 0; i < sectors.Count; i++)
                     {
                         ImGui.InputFloat3($"Sector[{i}] Position", ref sectors[i].Center);
                         ImGui.InputFloat3($"Sector[{i}] Size", ref sectors[i].Size);
                     }
 
+                    ImGui.Separator();
+                    ImGui.InputInt("Next Sector Seed", ref Seed);
                     if (ImGui.Button("Add Sector"))
                     {
-                        sectors.Add(new Algo.Sector(Vector3.Zero, new Vector3(1, 1, 1)));
+                        sectors.Add(new Algo.Sector(Vector3.Zero, new Vector3(1, 1, 1), Seed));
                         points.Add(sectors.Count - 1, new List<Vector3>());
+                        selected.Add(false);
                     }
 
-                    if (ImGui.Button("Remove Sector") && sectors.Count > 0)
+                    if (ImGui.Button("Remove Last Sector") && sectors.Count > 0)
                     {
                         int remIdx = sectors.Count - 1;
-                        sectors.RemoveAt(sectors.Count - 1);
+                        sectors.RemoveAt(remIdx);
                         points.Remove(remIdx);
+                        selected.RemoveAt(remIdx);
                     }
 
+                    ImGui.SeparatorText("Sector Point Spawning");
                     ImGui.InputInt("Selected Sector", ref selectedSector);
                     ImGui.InputInt("Number of Points", ref numberOfPoints);
                     if (ImGui.Button("Generate Points") && selectedSector > -1 && selectedSector < sectors.Count && numberOfPoints > 0)
                     {
                         points[selectedSector].AddRange(sectors[selectedSector].CreateRandomPositions(numberOfPoints));
+                    }
+
+                    ImGui.SeparatorText("Available Sectors for Computation");
+                    for (int i = 0; i < selected.Count; i++)
+                    {
+                        bool select = selected[i];
+                        if (ImGui.Checkbox($"Sector {i}", ref select)) {
+                            selected[i] = select;
+                        }
+
+                        if (i + 1 % 4 != 0 && i + 1 != selected.Count) {
+                            ImGui.SameLine();
+                        }
+                    }
+
+                    ImGui.SeparatorText("Available Algoritms");
+
+                    for (int i = 0; i < selectedAlgos.Length; i++)
+                    {
+                        ImGui.Checkbox(i == 0 ? "NNH" : "ACO", ref selectedAlgos[i]);
+                        if(i + 1 != selectedAlgos.Length)
+                        {
+                            ImGui.SameLine();
+                        }
+                    }
+
+                    if (selectedAlgos.Any(x => x == true) && selected.Any(x => x == true))
+                    {
+                        if (ImGui.Button("Run Algoritms"))
+                        {
+
+                        }
                     }
                 }
                 ImGui.End();
