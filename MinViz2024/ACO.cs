@@ -40,7 +40,7 @@ namespace MinViz2024
 
         public List<int> Solve(int maxIterations = 100)
         {
-            List<int> bestTour = null;
+            var bestTour = new List<int>();
             double bestTourLength = double.MaxValue;
 
             for (int iteration = 0; iteration < maxIterations; iteration++)
