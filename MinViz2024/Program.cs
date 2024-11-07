@@ -39,6 +39,7 @@ namespace MinViz2024
             bool is3DViewportOpen = true;
             bool isSceneControlsOpen = true;
             bool isAlgorithmControlOpen = true;
+            bool isAlgorithmResultOpen = false;
 
             // 3d scene state
             bool showGrid = true;
@@ -55,6 +56,21 @@ namespace MinViz2024
 
             // algos
             var selectedAlgos = new bool[2] { false, false };
+            int solutionsPerSecond = 1;
+
+            NNH NNH;
+
+            int ACOSeed = new Random().Next();
+            int ACOAntCount = 15;
+            int ACOIterations = 100;
+            double ACOEvapRate = 0.1;
+            double ACOAlpha = 1;
+            double ACOBeta = 2;
+            ACO ACO;
+
+            // results
+            var results = new List<Algo.Result>();
+            int showIdx = -1;
 
             while (!Raylib.WindowShouldClose())
             {
@@ -64,18 +80,36 @@ namespace MinViz2024
 
                 Raylib.BeginMode3D(camera);
 
-                if (showGrid) {
+                if (showGrid)
+                {
                     Raylib.DrawGrid(25, 1.0f);
                 }
 
-                for (int i = 0; i < sectors.Count; i++) {
+                for (int i = 0; i < sectors.Count; i++)
+                {
                     Raylib.DrawCubeWiresV(sectors[i].Center, sectors[i].Size, selected[i] ? Color.Magenta : Color.Yellow);
                 }
 
-                for (int i = 0; i < points.Count; i++) {
-                    for (int j = 0; j < points[i].Count; j++){
+                for (int i = 0; i < points.Count; i++)
+                {
+                    for (int j = 0; j < points[i].Count; j++)
+                    {
                         Raylib.DrawSphere(points[i][j], radius, selected[i] ? Color.Gold : Color.Blue);
                     }
+                }
+
+                if (showIdx >= 0 && showIdx < results.Count)
+                {
+                    var best = results[showIdx].Solutions.Last();
+                    for (int i = 0; i < best.Count - 1; i++)
+                    {
+                        Raylib.DrawLine3D(
+                            results[showIdx].Points[best[i]],
+                            results[showIdx].Points[best[i + 1]],
+                            Color.Green);
+                    }
+                    // return to start
+                    Raylib.DrawLine3D(results[showIdx].Points[best[0]], results[showIdx].Points[best[^1]], Color.Green);
                 }
 
                 Raylib.EndMode3D();
@@ -119,8 +153,8 @@ namespace MinViz2024
                 ImGui.End();
 
                 // Controls window with fixed size
-                ImGui.SetNextWindowPos(new Vector2(screenWidth - 310, 170), ImGuiCond.FirstUseEver);
-                ImGui.SetNextWindowSize(new Vector2(300, 150), ImGuiCond.FirstUseEver);
+                ImGui.SetNextWindowPos(new Vector2(10, 620), ImGuiCond.Once);
+                ImGui.SetNextWindowSize(new Vector2(300, 90), ImGuiCond.Once);
 
                 ImGuiWindowFlags sceneControlFlags = ImGuiWindowFlags.None;
 
@@ -131,10 +165,12 @@ namespace MinViz2024
                     {
                         ImGui.SetWindowPos("3D View", new Vector2(10, 10));
                         ImGui.SetWindowSize("3D View", new Vector2(800, 600));
-                        ImGui.SetWindowPos("Scene Controls", new Vector2(screenWidth - 310, 10));
-                        ImGui.SetWindowSize("Scene Controls", new Vector2(300, 150));
-                        ImGui.SetWindowPos("Algorithm Controls", new Vector2(screenWidth - 460, 170));
-                        ImGui.SetWindowSize("Algorithm Controls", new Vector2(450, 400));
+                        ImGui.SetWindowPos("Scene Controls", new Vector2(10, 620));
+                        ImGui.SetWindowSize("Scene Controls", new Vector2(300, 90));
+                        ImGui.SetWindowPos("Algorithm Controls", new Vector2(screenWidth - 460, 10));
+                        ImGui.SetWindowSize("Algorithm Controls", new Vector2(450, 560));
+                        ImGui.SetWindowPos("Algorithm Results", new Vector2(screenWidth - 460, 580));
+                        ImGui.SetWindowSize("Algorithm Results", new Vector2(450, 130));
                     }
 
                     if (ImGui.Button("Toggle Grid"))
@@ -145,8 +181,8 @@ namespace MinViz2024
                 ImGui.End();
 
                 // Controls window with fixed size
-                ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 170), ImGuiCond.FirstUseEver);
-                ImGui.SetNextWindowSize(new Vector2(450, 400), ImGuiCond.FirstUseEver);
+                ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 10), ImGuiCond.Once);
+                ImGui.SetNextWindowSize(new Vector2(450, 560), ImGuiCond.Once);
 
                 ImGuiWindowFlags controlFlags = ImGuiWindowFlags.None;
 
@@ -188,11 +224,13 @@ namespace MinViz2024
                     for (int i = 0; i < selected.Count; i++)
                     {
                         bool select = selected[i];
-                        if (ImGui.Checkbox($"Sector {i}", ref select)) {
+                        if (ImGui.Checkbox($"Sector {i}", ref select))
+                        {
                             selected[i] = select;
                         }
 
-                        if (i + 1 % 4 != 0 && i + 1 != selected.Count) {
+                        if (i + 1 % 4 != 0 && i + 1 != selected.Count)
+                        {
                             ImGui.SameLine();
                         }
                     }
@@ -201,8 +239,8 @@ namespace MinViz2024
 
                     for (int i = 0; i < selectedAlgos.Length; i++)
                     {
-                        ImGui.Checkbox(i == 0 ? "NNH" : "ACO", ref selectedAlgos[i]);
-                        if(i + 1 != selectedAlgos.Length)
+                        ImGui.Checkbox(i == 0 ? "Nearest Neighbor Heuristic" : "Ant Colony Optimization", ref selectedAlgos[i]);
+                        if (i + 1 != selectedAlgos.Length)
                         {
                             ImGui.SameLine();
                         }
@@ -210,10 +248,87 @@ namespace MinViz2024
 
                     if (selectedAlgos.Any(x => x == true) && selected.Any(x => x == true))
                     {
-                        if (ImGui.Button("Run Algoritms"))
+                        // If ACO is selected show options
+                        if (selectedAlgos[1])
                         {
-
+                            ImGui.SeparatorText("ACO Settings");
+                            ImGui.InputInt("Seed", ref ACOSeed);
+                            ImGui.InputInt("Ant Count", ref ACOAntCount);
+                            ImGui.InputInt("Max Iterations", ref ACOIterations);
+                            ImGui.InputDouble("Alpha", ref ACOAlpha);
+                            ImGui.InputDouble("Beta", ref ACOBeta);
+                            ImGui.InputDouble("Evaporation Rate", ref ACOEvapRate);
                         }
+
+                        if (ImGui.Button("Run Algorithms"))
+                        {
+                            // fetch all selected positions
+                            var nodes = new List<Vector3>();
+                            for (int i = 0; i < points.Count; i++)
+                            {
+                                if (!selected[i])
+                                {
+                                    continue;
+                                }
+
+                                for (int j = 0; j < points[i].Count; j++)
+                                {
+                                    nodes.Add(points[i][j]);
+                                }
+                            }
+
+                            // DO NNH
+                            if (selectedAlgos[0])
+                            {
+                                NNH = new NNH(nodes);
+                                results.Add(NNH.FullSolve());
+                            }
+
+
+                            // DO ACO
+                            if (selectedAlgos[1])
+                            {
+                                ACO = new ACO(nodes, ACOSeed, ACOAntCount, ACOEvapRate, ACOAlpha, ACOBeta);
+                                results.Add(ACO.Solve(ACOIterations));
+                            }
+                        }
+                    }
+                }
+                ImGui.End();
+
+                // Controls window with fixed size
+                ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 580), ImGuiCond.Once);
+                ImGui.SetNextWindowSize(new Vector2(450, 130), ImGuiCond.Once);
+
+                ImGuiWindowFlags resultFlags = ImGuiWindowFlags.None;
+
+                if (ImGui.Begin("Algorithm Results", ref isAlgorithmResultOpen, resultFlags))
+                {
+                    ImGui.SeparatorText("Replay Settings");
+                    ImGui.SliderInt("Solutions Speed", ref solutionsPerSecond, 1, 30);
+                    ImGui.Separator();
+
+                    for (int i = results.Count - 1; i >= 0; i--)
+                    {
+                        var res = results[i];
+                        ImGui.Text($"{res.ResultTime.ToShortTimeString()} - {res.AlgoUsed} - {res.Distances.Last():F8}");
+                        ImGui.SameLine();
+                        if (ImGui.Button($"Show[{i}]"))
+                        {
+                            Console.WriteLine("Show Test!");
+                            showIdx = i;
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button($"Info[{i}]"))
+                        {
+                            Console.WriteLine("Info Test!");
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button($"Replay[{i}]"))
+                        {
+                            Console.WriteLine("Replay Test!");
+                        }
+                        ImGui.Separator();
                     }
                 }
                 ImGui.End();
@@ -226,6 +341,19 @@ namespace MinViz2024
             Raylib.UnloadRenderTexture(renderTexture);
             rlImGui.Shutdown();
             Raylib.CloseWindow();
+        }
+
+        // Function to display dynamic data in the popup
+        static void DisplayResultInfo(Algo.Result result)
+        {
+            ImGui.Text($"Algorithm: {result.AlgoUsed}");
+            ImGui.Text($"Execution Time: {result.ResultTime}");
+            ImGui.Separator();
+            ImGui.Text("Distances:");
+            for (int j = 0; j < result.Distances.Count; j++)
+            {
+                ImGui.Text($"Step {j}: {result.Distances[j]:F4}");
+            }
         }
     }
 }

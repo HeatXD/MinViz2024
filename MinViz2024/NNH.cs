@@ -25,9 +25,13 @@ namespace MinViz2024
             }
         }
 
-        public List<int> FullSolve()
+        public Algo.Result FullSolve()
         {
-            var best = new List<int>();
+            var algoResult = new Algo.Result(Algo.ResultType.NNH);
+
+            algoResult.Points = _points;
+            algoResult.DistanceMatrix = _distanceMatrix;
+
             double bestDistance = double.MaxValue;
 
             for (int i = 0; i < _points.Count; i++)
@@ -37,15 +41,16 @@ namespace MinViz2024
 
                 if (tourLength < bestDistance)
                 {
-                    best = result;
+                    algoResult.Distances.Add(bestDistance);
+                    algoResult.Solutions.Add(result);
                     bestDistance = tourLength;
                 }
             }
 
-            return best;
+            return algoResult;
         }
 
-        public List<int> StepSolve(int idx)
+        private List<int> StepSolve(int idx)
         {
             int n = _points.Count;
             // If no start index provided, choose random start point
@@ -78,7 +83,7 @@ namespace MinViz2024
             return tour;
         }
 
-        public double CalculateTourLength(List<int> tour)
+        private double CalculateTourLength(List<int> tour)
         {
             double length = 0;
             for (int i = 0; i < tour.Count - 1; i++)
