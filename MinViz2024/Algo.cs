@@ -9,6 +9,15 @@ namespace MinViz2024
             NNH,
             ACO
         }
+        public struct BenchResult
+        {
+            public ResultType Algo;
+            public double Distance;
+            public int Seed;
+            public long ElapsedTime;
+            public int PointCount;
+            public int CubicVolume;
+        }
 
         public struct Result
         {
@@ -19,6 +28,7 @@ namespace MinViz2024
             public List<double> Distances;
             public List<List<int>> Solutions;
             public DateTime ResultTime;
+            public List<long> ElapsedTimes;
 
             public Result(ResultType rtype)
             {
@@ -27,6 +37,16 @@ namespace MinViz2024
                 Distances = new List<double>();
                 Solutions = new List<List<int>>();
                 ResultTime = DateTime.UtcNow;
+                ElapsedTimes = new List<long>();
+            }
+
+            public BenchResult ToBench()
+            {
+                var result = new BenchResult();
+                result.Distance = Distances.Last();
+                result.ElapsedTime = ElapsedTimes.Last();
+                result.Algo = AlgoUsed;
+                return result;
             }
         }
 

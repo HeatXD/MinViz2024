@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 
 namespace MinViz2024
 {
@@ -48,6 +49,9 @@ namespace MinViz2024
 
             double bestTourLength = double.MaxValue;
 
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
             for (int iteration = 0; iteration < maxIterations; iteration++)
             {
                 var antTours = new List<List<int>>();
@@ -63,10 +67,11 @@ namespace MinViz2024
 
                     if (tourLength < bestTourLength)
                     {
-                        result.Distances.Add(tourLength);
-                        result.Solutions.Add(tour);
-
                         bestTourLength = tourLength;
+
+                        result.Distances.Add(bestTourLength);
+                        result.Solutions.Add(tour);
+                        result.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                     }
                 }
 
@@ -136,16 +141,17 @@ namespace MinViz2024
 
         private void UpdatePheromones(List<List<int>> antTours, List<double> tourLengths)
         {
-            int n = _points.Count;
+            int num = _points.Count;
 
             // Evaporation
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < num; i++)
             {
-                for (int j = 0; j < n; j++)
+                for (int j = 0; j < num; j++)
                 {
-                    _pheromoneMatrix[i, j] *= (1 - _evaporationRate);
+                    _pheromoneMatrix[i, j] *= (1.0 - _evaporationRate);
                 }
             }
+
             // Add new pheromones
             for (int ant = 0; ant < antTours.Count; ant++)
             {
@@ -154,17 +160,13 @@ namespace MinViz2024
 
                 for (int i = 0; i < tour.Count - 1; i++)
                 {
-                    int city1 = tour[i];
-                    int city2 = tour[i + 1];
-                    _pheromoneMatrix[city1, city2] += contribution;
-                    _pheromoneMatrix[city2, city1] += contribution;
+                    _pheromoneMatrix[tour[i], tour[i+1]] += contribution;
+                    _pheromoneMatrix[tour[i+1], tour[i]] += contribution;
                 }
 
                 // Connect last city to first
-                int first = tour[0];
-                int last = tour[^1];
-                _pheromoneMatrix[last, first] += contribution;
-                _pheromoneMatrix[first, last] += contribution;
+                _pheromoneMatrix[tour[^1], tour[0]] += contribution;
+                _pheromoneMatrix[tour[0], tour[^1]] += contribution;
             }
         }
 

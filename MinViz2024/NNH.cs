@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 
 namespace MinViz2024
 {
@@ -34,6 +35,9 @@ namespace MinViz2024
 
             double bestDistance = double.MaxValue;
 
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
             for (int i = 0; i < _points.Count; i++)
             {
                 var result = StepSolve(i);
@@ -41,9 +45,11 @@ namespace MinViz2024
 
                 if (tourLength < bestDistance)
                 {
+                    bestDistance = tourLength;
+
                     algoResult.Distances.Add(bestDistance);
                     algoResult.Solutions.Add(result);
-                    bestDistance = tourLength;
+                    algoResult.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                 }
             }
 

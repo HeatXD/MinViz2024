@@ -1,13 +1,33 @@
 ﻿using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
+using System.Globalization;
 using System.Numerics;
+using System.Reflection;
+using static MinViz2024.Algo;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace MinViz2024
 {
     internal class Program
     {
         static void Main(string[] args)
+        {
+            Console.WriteLine("Write 'sim' to enter simulation mode otherwise write anything to run the benchmarks");
+            var choice = Console.ReadLine();
+            if (choice != null && choice.ToLower().Contains("sim"))
+            {
+                RunSim();
+            }
+            else
+            {
+                Console.WriteLine("Bench Mode");
+                RunBenchmark();
+                
+            }
+        }
+
+        private static void RunSim()
         {
             // Initialize main window
             int screenWidth = 1280;
@@ -284,7 +304,6 @@ namespace MinViz2024
                                 results.Add(NNH.FullSolve());
                             }
 
-
                             // DO ACO
                             if (selectedAlgos[1])
                             {
@@ -305,13 +324,13 @@ namespace MinViz2024
                 if (ImGui.Begin("Algorithm Results", ref isAlgorithmResultOpen, resultFlags))
                 {
                     ImGui.SeparatorText("Replay Settings");
-                    ImGui.SliderInt("Solutions Speed", ref solutionsPerSecond, 1, 30);
+                    ImGui.SliderInt("Replay Speed", ref solutionsPerSecond, 1, 30);
                     ImGui.Separator();
 
                     for (int i = results.Count - 1; i >= 0; i--)
                     {
                         var res = results[i];
-                        ImGui.Text($"{res.ResultTime.ToShortTimeString()} - {res.AlgoUsed} - {res.Distances.Last():F8}");
+                        ImGui.Text($"{res.ResultTime.ToShortTimeString()} - {res.AlgoUsed} - {res.Distances.Last():F6}");
                         ImGui.SameLine();
                         if (ImGui.Button($"Show[{i}]"))
                         {
@@ -328,6 +347,11 @@ namespace MinViz2024
                         {
                             Console.WriteLine("Replay Test!");
                         }
+                        ImGui.SameLine();
+                        if (ImGui.Button($"X[{i}]"))
+                        {
+                            Console.WriteLine("Close Test!");
+                        }
                         ImGui.Separator();
                     }
                 }
@@ -343,16 +367,108 @@ namespace MinViz2024
             Raylib.CloseWindow();
         }
 
-        // Function to display dynamic data in the popup
-        static void DisplayResultInfo(Algo.Result result)
+        private static void RunBenchmark()
         {
-            ImGui.Text($"Algorithm: {result.AlgoUsed}");
-            ImGui.Text($"Execution Time: {result.ResultTime}");
-            ImGui.Separator();
-            ImGui.Text("Distances:");
-            for (int j = 0; j < result.Distances.Count; j++)
+            var AllBenchResults = new List<Algo.BenchResult>();
+            var points = new List<Vector3>();
+
+            Console.WriteLine("Test 1: 5x5x5 with 5 points");
+            RunBenchmarkTest(points, 5, 5, 5, 5, ref AllBenchResults);
+
+            Console.WriteLine("Test 2: 5x5x5 with 10 points");
+            RunBenchmarkTest(points, 5, 5, 5, 10, ref AllBenchResults);
+
+            Console.WriteLine("Test 3: 5x5x5 with 20 points");
+            RunBenchmarkTest(points, 5, 5, 5, 20, ref AllBenchResults);
+
+            Console.WriteLine("Test 4: 10x10x10 with 5 points");
+            RunBenchmarkTest(points, 10, 10, 10, 5, ref AllBenchResults);
+
+            Console.WriteLine("Test 5: 10x10x10 with 10 points");
+            RunBenchmarkTest(points, 10, 10, 10, 10, ref AllBenchResults);
+
+            Console.WriteLine("Test 6: 10x10x10 with 20 points");
+            RunBenchmarkTest(points, 10, 10, 10, 20, ref AllBenchResults);
+
+            Console.WriteLine("Test 7: 15x15x15 with 5 points");
+            RunBenchmarkTest(points, 15, 15, 15, 5, ref AllBenchResults);
+
+            Console.WriteLine("Test 8: 15x15x15 with 10 points");
+            RunBenchmarkTest(points, 15, 15, 15, 10, ref AllBenchResults);
+
+            Console.WriteLine("Test 9: 15x15x15 with 20 points");
+            RunBenchmarkTest(points, 15, 15, 15, 20, ref AllBenchResults);
+
+            WriteToCSV(AllBenchResults, "BenchResults.csv");
+        }
+
+        private static void RunBenchmarkTest(List<Vector3> points, int x, int y, int z, int numPoints, ref List<Algo.BenchResult> allBenchResults)
+        {
+            const int BENCH_ITERS = 10;
+            points.Clear();
+            for (int i = 0; i < BENCH_ITERS; i++)
             {
-                ImGui.Text($"Step {j}: {result.Distances[j]:F4}");
+                int seed = i + BENCH_ITERS;
+                var sector = new Algo.Sector(Vector3.Zero, new Vector3(x, y, z), seed);
+                points.AddRange(sector.CreateRandomPositions(numPoints));
+
+                // ACO
+                var aco = new ACO(points, seed);
+                var acoResult = aco.Solve().ToBench();
+                acoResult.Seed = seed;
+                acoResult.CubicVolume = x * y * z;
+                acoResult.PointCount = numPoints;
+                allBenchResults.Add(acoResult);
+
+                // NNH
+                var nnh = new NNH(points);
+                var nnhResult = nnh.FullSolve().ToBench();
+                nnhResult.Seed = seed;
+                nnhResult.CubicVolume = x * y * z;
+                nnhResult.PointCount = numPoints;
+                allBenchResults.Add(nnhResult);
+            }
+        }
+
+        static void WriteToCSV<T>(List<T> data, string filename)
+        {
+            // Get the public field names from the first object in the list
+            FieldInfo[] fields = typeof(T).GetFields(BindingFlags.Public | BindingFlags.Instance);
+            string[] columnNames = Array.ConvertAll(fields, f => f.Name);
+
+            // Write the CSV file
+            using (var writer = new StreamWriter(filename))
+            {
+                // Write the header row
+                writer.WriteLine(string.Join(",", columnNames));
+
+                // Write each object as a row
+                foreach (var item in data)
+                {
+                    var values = new List<string>();
+                    foreach (var field in fields)
+                    {
+                        var fieldValue = field.GetValue(item);
+                        string formattedValue = "";
+
+                        // Format the field value based on its data type
+                        if (fieldValue is float)
+                        {
+                            formattedValue = ((float)fieldValue).ToString("F10", CultureInfo.InvariantCulture);
+                        }
+                        else if (fieldValue is double)
+                        {
+                            formattedValue = ((double)fieldValue).ToString("F10", CultureInfo.InvariantCulture);
+                        }
+                        else
+                        {
+                            formattedValue = fieldValue?.ToString() ?? "";
+                        }
+
+                        values.Add(formattedValue);
+                    }
+                    writer.WriteLine(string.Join(",", values));
+                }
             }
         }
     }
