@@ -75,7 +75,7 @@ namespace MinViz2024
 
             // algos
             var selectedAlgos = new bool[2] { false, false };
-            int solutionsPerSecond = 1;
+            float solutionsPerSecond = 1;
 
             NNH NNH;
 
@@ -92,6 +92,8 @@ namespace MinViz2024
             int showIdx = -1;
             int replayIdx = -1;
 
+            UInt64 counter = 0;
+
             while (!Raylib.WindowShouldClose())
             {
                 // First render the 3D scene to the render texture
@@ -100,37 +102,11 @@ namespace MinViz2024
 
                 Raylib.BeginMode3D(camera);
 
-                if (showGrid)
-                {
-                    Raylib.DrawGrid(25, 1.0f);
-                }
-
-                for (int i = 0; i < sectors.Count; i++)
-                {
-                    Raylib.DrawCubeWiresV(sectors[i].Center, sectors[i].Size, selected[i] ? Color.Magenta : Color.Yellow);
-                }
-
-                for (int i = 0; i < points.Count; i++)
-                {
-                    for (int j = 0; j < points[i].Count; j++)
-                    {
-                        Raylib.DrawSphere(points[i][j], radius, selected[i] ? Color.Gold : Color.Blue);
-                    }
-                }
-
-                if (showIdx >= 0 && showIdx < results.Count)
-                {
-                    var best = results[showIdx].Solutions.Last();
-                    for (int i = 0; i < best.Count - 1; i++)
-                    {
-                        Raylib.DrawLine3D(
-                            results[showIdx].Points[best[i]],
-                            results[showIdx].Points[best[i + 1]],
-                            Color.Green);
-                    }
-                    // return to start
-                    Raylib.DrawLine3D(results[showIdx].Points[best[0]], results[showIdx].Points[best[^1]], Color.Green);
-                }
+                DrawGrid(showGrid);
+                DrawSectors(sectors, selected);
+                DrawPoints(points, radius, selected);
+                ShowSelectedResult(showIdx, results);
+                ReplaySelectedResult(replayIdx, results, counter, solutionsPerSecond);
 
                 Raylib.EndMode3D();
 
@@ -141,71 +117,28 @@ namespace MinViz2024
                 Raylib.ClearBackground(Color.DarkGray);
 
                 rlImGui.Begin();
-
+               
                 // 3D View window with size constraints
                 ImGui.SetNextWindowSizeConstraints(
                     new Vector2(200, 200),    // Minimum size
                     new Vector2(screenWidth - 20, screenHeight - 20)  // Maximum size
                 );
-
                 ImGuiWindowFlags viewportFlags = ImGuiWindowFlags.None;
-
-                if (ImGui.Begin("3D View", ref is3DViewportOpen, viewportFlags))
-                {
-                    Vector2 windowSize = ImGui.GetContentRegionAvail();
-
-                    // Display the render texture in the ImGui window
-                    ImGui.Image(
-                        (IntPtr)renderTexture.Texture.Id,
-                        windowSize,
-                        new Vector2(0, 1),
-                        new Vector2(1, 0)
-                    );
-
-                    if (ImGui.IsWindowFocused())
-                    {
-                        if (Raylib.IsKeyDown(KeyboardKey.Right)) camera.Position.X += 0.1f;
-                        if (Raylib.IsKeyDown(KeyboardKey.Left)) camera.Position.X -= 0.1f;
-                        if (Raylib.IsKeyDown(KeyboardKey.Up)) camera.FovY -= 0.1f;
-                        if (Raylib.IsKeyDown(KeyboardKey.Down)) camera.FovY += 0.1f;
-                    }
-                }
-                ImGui.End();
+                Draw3dView(ref is3DViewportOpen, viewportFlags, ref camera, (IntPtr)renderTexture.Texture.Id);
+         
 
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(10, 620), ImGuiCond.Once);
                 ImGui.SetNextWindowSize(new Vector2(300, 90), ImGuiCond.Once);
 
                 ImGuiWindowFlags sceneControlFlags = ImGuiWindowFlags.None;
-
-                if (ImGui.Begin("Scene Controls", ref isSceneControlsOpen, sceneControlFlags))
-                {
-                    // Window control buttons
-                    if (ImGui.Button("Reset Window Positions"))
-                    {
-                        ImGui.SetWindowPos("3D View", new Vector2(10, 10));
-                        ImGui.SetWindowSize("3D View", new Vector2(800, 600));
-                        ImGui.SetWindowPos("Scene Controls", new Vector2(10, 620));
-                        ImGui.SetWindowSize("Scene Controls", new Vector2(300, 90));
-                        ImGui.SetWindowPos("Algorithm Controls", new Vector2(screenWidth - 460, 10));
-                        ImGui.SetWindowSize("Algorithm Controls", new Vector2(450, 560));
-                        ImGui.SetWindowPos("Algorithm Results", new Vector2(screenWidth - 460, 580));
-                        ImGui.SetWindowSize("Algorithm Results", new Vector2(450, 130));
-                    }
-
-                    if (ImGui.Button("Toggle Grid"))
-                    {
-                        showGrid = !showGrid;
-                    }
-                }
-                ImGui.End();
+                DrawSceneControls(ref isSceneControlsOpen, sceneControlFlags, screenWidth, ref showGrid);
 
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 10), ImGuiCond.Once);
                 ImGui.SetNextWindowSize(new Vector2(450, 560), ImGuiCond.Once);
 
                 ImGuiWindowFlags controlFlags = ImGuiWindowFlags.None;
-
                 if (ImGui.Begin("Algorithm Controls", ref isAlgorithmControlOpen, controlFlags))
                 {
                     ImGui.SeparatorText("Sector Control");
@@ -324,7 +257,7 @@ namespace MinViz2024
                 if (ImGui.Begin("Algorithm Results", ref isAlgorithmResultOpen, resultFlags))
                 {
                     ImGui.SeparatorText("Replay Settings");
-                    ImGui.SliderInt("Replay Speed", ref solutionsPerSecond, 1, 30);
+                    ImGui.SliderFloat("Replay Speed", ref solutionsPerSecond, 1, 15);
                     ImGui.Separator();
 
                     for (int i = results.Count - 1; i >= 0; i--)
@@ -341,6 +274,8 @@ namespace MinViz2024
                         ImGui.SameLine();
                         if (ImGui.Button(showIdx != i ? $"Show[{i}]" : $"Hide[{i}]"))
                         {
+                            // disable replay feature
+                            replayIdx = -1;
                             showIdx = showIdx == i ? -1 : i;
                         }
                         ImGui.SameLine();
@@ -349,12 +284,11 @@ namespace MinViz2024
                             Console.WriteLine("Info Test!");
                         }
                         ImGui.SameLine();
-                        if (ImGui.Button($"Replay[{i}]"))
+                        if (ImGui.Button(replayIdx != i ? $"Start[{i}]": $"Stop[{i}]"))
                         {
                             // disable show feature
                             showIdx = -1;
                             replayIdx = replayIdx == i ? -1 : i;
-                            Console.WriteLine("Replay Test!");
                         }
                         ImGui.SameLine();
                         if (ImGui.Button($"X[{i}]"))
@@ -374,6 +308,105 @@ namespace MinViz2024
             Raylib.UnloadRenderTexture(renderTexture);
             rlImGui.Shutdown();
             Raylib.CloseWindow();
+        }
+
+        private static void ReplaySelectedResult(int replayIdx, List<Algo.Result> results, ulong counter, float solutionsPerSecond)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void DrawSceneControls(ref bool isSceneControlsOpen, ImGuiWindowFlags sceneControlFlags, int screenWidth, ref bool showGrid)
+        {
+            if (ImGui.Begin("Scene Controls", ref isSceneControlsOpen, sceneControlFlags))
+            {
+                // Window control buttons
+                if (ImGui.Button("Reset Window Positions"))
+                {
+                    ImGui.SetWindowPos("3D View", new Vector2(10, 10));
+                    ImGui.SetWindowSize("3D View", new Vector2(800, 600));
+                    ImGui.SetWindowPos("Scene Controls", new Vector2(10, 620));
+                    ImGui.SetWindowSize("Scene Controls", new Vector2(300, 90));
+                    ImGui.SetWindowPos("Algorithm Controls", new Vector2(screenWidth - 460, 10));
+                    ImGui.SetWindowSize("Algorithm Controls", new Vector2(450, 560));
+                    ImGui.SetWindowPos("Algorithm Results", new Vector2(screenWidth - 460, 580));
+                    ImGui.SetWindowSize("Algorithm Results", new Vector2(450, 130));
+                }
+
+                if (ImGui.Button("Toggle Grid"))
+                {
+                    showGrid = !showGrid;
+                }
+            }
+            ImGui.End();
+        }
+
+        private static void Draw3dView(ref bool is3DViewportOpen, ImGuiWindowFlags viewportFlags, ref Camera3D camera, nint renderTexture)
+        {
+            if (ImGui.Begin("3D View", ref is3DViewportOpen, viewportFlags))
+            {
+                Vector2 windowSize = ImGui.GetContentRegionAvail();
+
+                // Display the render texture in the ImGui window
+                ImGui.Image(
+                    renderTexture,
+                    windowSize,
+                    new Vector2(0, 1),
+                    new Vector2(1, 0)
+                );
+
+                if (ImGui.IsWindowFocused())
+                {
+                    if (Raylib.IsKeyDown(KeyboardKey.Right)) camera.Position.X += 0.1f;
+                    if (Raylib.IsKeyDown(KeyboardKey.Left)) camera.Position.X -= 0.1f;
+                    if (Raylib.IsKeyDown(KeyboardKey.Up)) camera.FovY -= 0.1f;
+                    if (Raylib.IsKeyDown(KeyboardKey.Down)) camera.FovY += 0.1f;
+                }
+            }
+            ImGui.End();
+        }
+
+        private static void DrawGrid(bool showGrid)
+        {
+            if (showGrid)
+            {
+                Raylib.DrawGrid(25, 1.0f);
+            }
+        }
+
+        private static void ShowSelectedResult(int showIdx, List<Algo.Result> results)
+        {
+            if (showIdx >= 0 && showIdx < results.Count)
+            {
+                var best = results[showIdx].Solutions.Last();
+                for (int i = 0; i < best.Count - 1; i++)
+                {
+                    Raylib.DrawLine3D(
+                        results[showIdx].Points[best[i]],
+                        results[showIdx].Points[best[i + 1]],
+                        Color.Green);
+                }
+                // return to start
+                Raylib.DrawLine3D(results[showIdx].Points[best[0]], results[showIdx].Points[best[^1]], Color.Green);
+            }
+        }
+
+        private static void DrawSectors(List<Algo.Sector> sectors, List<bool> selected)
+        {
+            for (int i = 0; i < sectors.Count; i++)
+            {
+                Raylib.DrawCubeWiresV(sectors[i].Center, sectors[i].Size, selected[i] ? Color.Magenta : Color.Yellow);
+            }
+        }
+
+        private static void DrawPoints(Dictionary<int, List<Vector3>> points, float radius, List<bool> selected)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                for (int j = 0; j < points[i].Count; j++)
+                {
+                    Raylib.DrawSphere(points[i][j], radius, selected[i] ? Color.Gold : Color.Blue);
+                }
+            }
         }
 
         private static void RunBenchmark()
