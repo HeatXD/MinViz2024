@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
+using static MinViz2024.Algo;
 
 namespace MinViz2024
 {
@@ -33,6 +34,12 @@ namespace MinViz2024
             algoResult.Points = _points;
             algoResult.DistanceMatrix = _distanceMatrix;
 
+            // dont want to deal with exceptions
+            if (_points.Count < 2)
+            {
+                return algoResult;
+            }
+
             double bestDistance = double.MaxValue;
 
             var stopwatch = new Stopwatch();
@@ -50,6 +57,8 @@ namespace MinViz2024
                     algoResult.Distances.Add(bestDistance);
                     algoResult.Solutions.Add(result);
                     algoResult.ElapsedTimes.Add(stopwatch.ElapsedTicks);
+                    algoResult.Iterations.Add(i + 1);
+                    algoResult.AOSPositions.Add(i + 1);
                 }
             }
 

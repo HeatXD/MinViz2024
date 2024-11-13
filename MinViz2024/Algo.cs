@@ -17,6 +17,8 @@ namespace MinViz2024
             public long ElapsedTime;
             public int PointCount;
             public int CubicVolume;
+            public int Iterations;
+            public int AOSPositions; // selected ant or start positions
         }
 
         public struct Result
@@ -29,6 +31,8 @@ namespace MinViz2024
             public List<List<int>> Solutions;
             public DateTime ResultTime;
             public List<long> ElapsedTimes;
+            public List<int> Iterations;
+            public List<int> AOSPositions;
 
             public Result(ResultType rtype)
             {
@@ -38,16 +42,31 @@ namespace MinViz2024
                 Solutions = new List<List<int>>();
                 ResultTime = DateTime.UtcNow;
                 ElapsedTimes = new List<long>();
+                Iterations = new List<int>();
+                AOSPositions = new List<int>();
             }
 
-            public BenchResult ToBench()
+            public List<BenchResult> AllBenches(int seed, int volume, int numPoints)
             {
-                var result = new BenchResult();
-                result.Distance = Distances.Last();
-                result.ElapsedTime = ElapsedTimes.Last();
-                result.Algo = AlgoUsed;
+                var result = new List<BenchResult>();
+                for (int i = 0; i < Solutions.Count; i++)
+                {
+                    var bench = new BenchResult
+                    {
+                        Distance = Distances[i],
+                        ElapsedTime = ElapsedTimes[i],
+                        Iterations = Iterations[i],
+                        AOSPositions = AOSPositions[i],
+                        Algo = AlgoUsed,
+                        Seed = seed,
+                        CubicVolume = volume,
+                        PointCount = numPoints
+                    };
+                    result.Add(bench);
+                }
                 return result;
             }
+
         }
 
         public class Sector

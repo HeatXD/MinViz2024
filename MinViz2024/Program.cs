@@ -1,11 +1,10 @@
 ﻿using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
+using System.Data;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
-using static MinViz2024.Algo;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace MinViz2024
 {
@@ -91,6 +90,7 @@ namespace MinViz2024
             // results
             var results = new List<Algo.Result>();
             int showIdx = -1;
+            int replayIdx = -1;
 
             while (!Raylib.WindowShouldClose())
             {
@@ -330,12 +330,18 @@ namespace MinViz2024
                     for (int i = results.Count - 1; i >= 0; i--)
                     {
                         var res = results[i];
+                        if(res.Distances.Count < 1)
+                        {
+                            // cleanup dead results.
+                            results.RemoveAt(i);
+                            continue;
+                        }
+
                         ImGui.Text($"{res.ResultTime.ToShortTimeString()} - {res.AlgoUsed} - {res.Distances.Last():F6}");
                         ImGui.SameLine();
-                        if (ImGui.Button($"Show[{i}]"))
+                        if (ImGui.Button(showIdx != i ? $"Show[{i}]" : $"Hide[{i}]"))
                         {
-                            Console.WriteLine("Show Test!");
-                            showIdx = i;
+                            showIdx = showIdx == i ? -1 : i;
                         }
                         ImGui.SameLine();
                         if (ImGui.Button($"Info[{i}]"))
@@ -345,12 +351,15 @@ namespace MinViz2024
                         ImGui.SameLine();
                         if (ImGui.Button($"Replay[{i}]"))
                         {
+                            // disable show feature
+                            showIdx = -1;
+                            replayIdx = replayIdx == i ? -1 : i;
                             Console.WriteLine("Replay Test!");
                         }
                         ImGui.SameLine();
                         if (ImGui.Button($"X[{i}]"))
                         {
-                            Console.WriteLine("Close Test!");
+                            results.RemoveAt(i);
                         }
                         ImGui.Separator();
                     }
@@ -381,6 +390,12 @@ namespace MinViz2024
             Console.WriteLine("Test 3: 5x5x5 with 20 points");
             RunBenchmarkTest(points, 5, 5, 5, 20, ref AllBenchResults);
 
+            Console.WriteLine("Test 3: 5x5x5 with 40 points");
+            RunBenchmarkTest(points, 5, 5, 5, 40, ref AllBenchResults);
+
+            Console.WriteLine("Test 3: 5x5x5 with 80 points");
+            RunBenchmarkTest(points, 5, 5, 5, 80, ref AllBenchResults);
+
             Console.WriteLine("Test 4: 10x10x10 with 5 points");
             RunBenchmarkTest(points, 10, 10, 10, 5, ref AllBenchResults);
 
@@ -389,6 +404,12 @@ namespace MinViz2024
 
             Console.WriteLine("Test 6: 10x10x10 with 20 points");
             RunBenchmarkTest(points, 10, 10, 10, 20, ref AllBenchResults);
+
+            Console.WriteLine("Test 6: 10x10x10 with 40 points");
+            RunBenchmarkTest(points, 10, 10, 10, 40, ref AllBenchResults);
+
+            Console.WriteLine("Test 6: 10x10x10 with 80 points");
+            RunBenchmarkTest(points, 10, 10, 10, 80, ref AllBenchResults);
 
             Console.WriteLine("Test 7: 15x15x15 with 5 points");
             RunBenchmarkTest(points, 15, 15, 15, 5, ref AllBenchResults);
@@ -399,13 +420,18 @@ namespace MinViz2024
             Console.WriteLine("Test 9: 15x15x15 with 20 points");
             RunBenchmarkTest(points, 15, 15, 15, 20, ref AllBenchResults);
 
+            Console.WriteLine("Test 9: 15x15x15 with 40 points");
+            RunBenchmarkTest(points, 15, 15, 15, 40, ref AllBenchResults);
+
+            Console.WriteLine("Test 9: 15x15x15 with 80 points");
+            RunBenchmarkTest(points, 15, 15, 15, 80, ref AllBenchResults);
+
             WriteToCSV(AllBenchResults, "BenchResults.csv");
         }
 
         private static void RunBenchmarkTest(List<Vector3> points, int x, int y, int z, int numPoints, ref List<Algo.BenchResult> allBenchResults)
         {
-            const int BENCH_ITERS = 10;
-            points.Clear();
+            const int BENCH_ITERS = 20;
             for (int i = 0; i < BENCH_ITERS; i++)
             {
                 int seed = i + BENCH_ITERS;
@@ -413,20 +439,17 @@ namespace MinViz2024
                 points.AddRange(sector.CreateRandomPositions(numPoints));
 
                 // ACO
-                var aco = new ACO(points, seed);
-                var acoResult = aco.Solve().ToBench();
-                acoResult.Seed = seed;
-                acoResult.CubicVolume = x * y * z;
-                acoResult.PointCount = numPoints;
-                allBenchResults.Add(acoResult);
+                var aco = new ACO(points, seed, points.Count);
+                var acoResult = aco.Solve().AllBenches(seed, x * y * z, numPoints);
+                allBenchResults.AddRange(acoResult);
 
                 // NNH
                 var nnh = new NNH(points);
-                var nnhResult = nnh.FullSolve().ToBench();
-                nnhResult.Seed = seed;
-                nnhResult.CubicVolume = x * y * z;
-                nnhResult.PointCount = numPoints;
-                allBenchResults.Add(nnhResult);
+                var nnhResult = nnh.FullSolve().AllBenches(seed, x * y * z, numPoints);
+                allBenchResults.AddRange(nnhResult);
+
+                // clear points
+                points.Clear();
             }
         }
 

@@ -47,18 +47,24 @@ namespace MinViz2024
             result.PheromoneMatrix = _pheromoneMatrix;
             result.DistanceMatrix = _distanceMatrix;
 
+            // dont want to deal with exceptions
+            if(_points.Count < 2)
+            {
+                return result;
+            }
+
             double bestTourLength = double.MaxValue;
 
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            for (int iteration = 0; iteration < maxIterations; iteration++)
+            for (int iteration = 1; iteration <= maxIterations; iteration++)
             {
                 var antTours = new List<List<int>>();
                 var antTourLengths = new List<double>();
 
                 // Construct solutions for each ant
-                for (int ant = 0; ant < _numAnts; ant++)
+                for (int ant = 1; ant <= _numAnts; ant++)
                 {
                     var tour = ConstructSolution();
                     double tourLength = CalculateTourLength(tour);
@@ -72,6 +78,8 @@ namespace MinViz2024
                         result.Distances.Add(bestTourLength);
                         result.Solutions.Add(tour);
                         result.ElapsedTimes.Add(stopwatch.ElapsedTicks);
+                        result.Iterations.Add(iteration);
+                        result.AOSPositions.Add(ant);
                     }
                 }
 
