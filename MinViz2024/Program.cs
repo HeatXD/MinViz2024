@@ -539,40 +539,40 @@ namespace MinViz2024
             Console.WriteLine("Test 3: 5x5x5 with 20 points");
             RunBenchmarkTest(points, 5, 5, 5, 20, ref AllBenchResults);
 
-            Console.WriteLine("Test 3: 5x5x5 with 40 points");
+            Console.WriteLine("Test 4: 5x5x5 with 40 points");
             RunBenchmarkTest(points, 5, 5, 5, 40, ref AllBenchResults);
 
-            Console.WriteLine("Test 3: 5x5x5 with 80 points");
+            Console.WriteLine("Test 5: 5x5x5 with 80 points");
             RunBenchmarkTest(points, 5, 5, 5, 80, ref AllBenchResults);
 
-            Console.WriteLine("Test 4: 10x10x10 with 5 points");
+            Console.WriteLine("Test 6: 10x10x10 with 5 points");
             RunBenchmarkTest(points, 10, 10, 10, 5, ref AllBenchResults);
 
-            Console.WriteLine("Test 5: 10x10x10 with 10 points");
+            Console.WriteLine("Test 7: 10x10x10 with 10 points");
             RunBenchmarkTest(points, 10, 10, 10, 10, ref AllBenchResults);
 
-            Console.WriteLine("Test 6: 10x10x10 with 20 points");
+            Console.WriteLine("Test 8: 10x10x10 with 20 points");
             RunBenchmarkTest(points, 10, 10, 10, 20, ref AllBenchResults);
 
-            Console.WriteLine("Test 6: 10x10x10 with 40 points");
+            Console.WriteLine("Test 9: 10x10x10 with 40 points");
             RunBenchmarkTest(points, 10, 10, 10, 40, ref AllBenchResults);
 
-            Console.WriteLine("Test 6: 10x10x10 with 80 points");
+            Console.WriteLine("Test 10: 10x10x10 with 80 points");
             RunBenchmarkTest(points, 10, 10, 10, 80, ref AllBenchResults);
 
-            Console.WriteLine("Test 7: 15x15x15 with 5 points");
+            Console.WriteLine("Test 11: 15x15x15 with 5 points");
             RunBenchmarkTest(points, 15, 15, 15, 5, ref AllBenchResults);
 
-            Console.WriteLine("Test 8: 15x15x15 with 10 points");
+            Console.WriteLine("Test 12: 15x15x15 with 10 points");
             RunBenchmarkTest(points, 15, 15, 15, 10, ref AllBenchResults);
 
-            Console.WriteLine("Test 9: 15x15x15 with 20 points");
+            Console.WriteLine("Test 13: 15x15x15 with 20 points");
             RunBenchmarkTest(points, 15, 15, 15, 20, ref AllBenchResults);
 
-            Console.WriteLine("Test 9: 15x15x15 with 40 points");
+            Console.WriteLine("Test 14: 15x15x15 with 40 points");
             RunBenchmarkTest(points, 15, 15, 15, 40, ref AllBenchResults);
 
-            Console.WriteLine("Test 9: 15x15x15 with 80 points");
+            Console.WriteLine("Test 15: 15x15x15 with 80 points");
             RunBenchmarkTest(points, 15, 15, 15, 80, ref AllBenchResults);
 
             WriteToCSV(AllBenchResults, "BenchResults.csv");
