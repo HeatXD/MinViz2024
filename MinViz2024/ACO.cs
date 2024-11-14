@@ -44,7 +44,6 @@ namespace MinViz2024
             var result = new Algo.Result(Algo.ResultType.ACO);
 
             result.Points = _points;
-            result.PheromoneMatrix = _pheromoneMatrix;
             result.DistanceMatrix = _distanceMatrix;
 
             // dont want to deal with exceptions
@@ -75,11 +74,19 @@ namespace MinViz2024
                     {
                         bestTourLength = tourLength;
 
+                        stopwatch.Stop();
+
+                        result.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                         result.Distances.Add(bestTourLength);
                         result.Solutions.Add(tour);
                         result.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                         result.Iterations.Add(iteration);
                         result.AOSPositions.Add(ant);
+
+                        double[,] phero = (double[,])_pheromoneMatrix.Clone();
+                        result.PheromoneMatrix.Add(phero);
+
+                        stopwatch.Start();
                     }
                 }
 

@@ -54,11 +54,15 @@ namespace MinViz2024
                 {
                     bestDistance = tourLength;
 
+                    stopwatch.Stop();
+
+                    algoResult.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                     algoResult.Distances.Add(bestDistance);
                     algoResult.Solutions.Add(result);
-                    algoResult.ElapsedTimes.Add(stopwatch.ElapsedTicks);
                     algoResult.Iterations.Add(i + 1);
                     algoResult.AOSPositions.Add(i + 1);
+
+                    stopwatch.Start();
                 }
             }
 

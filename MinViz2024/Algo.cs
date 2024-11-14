@@ -26,7 +26,7 @@ namespace MinViz2024
             public ResultType AlgoUsed;
             public List<Vector3> Points;
             public double[,]? DistanceMatrix;
-            public double[,]? PheromoneMatrix;
+            public List<double[,]> PheromoneMatrix;
             public List<double> Distances;
             public List<List<int>> Solutions;
             public DateTime ResultTime;
@@ -44,6 +44,7 @@ namespace MinViz2024
                 ElapsedTimes = new List<long>();
                 Iterations = new List<int>();
                 AOSPositions = new List<int>();
+                PheromoneMatrix = new List<double[,]>();
             }
 
             public List<BenchResult> AllBenches(int seed, int volume, int numPoints)

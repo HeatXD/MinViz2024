@@ -1,7 +1,6 @@
 ﻿using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
-using System.Data;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
@@ -16,13 +15,13 @@ namespace MinViz2024
             var choice = Console.ReadLine();
             if (choice != null && choice.ToLower().Contains("sim"))
             {
+                Console.WriteLine("Simulation Mode");
                 RunSim();
             }
             else
             {
                 Console.WriteLine("Bench Mode");
                 RunBenchmark();
-                
             }
         }
 
@@ -58,7 +57,8 @@ namespace MinViz2024
             bool is3DViewportOpen = true;
             bool isSceneControlsOpen = true;
             bool isAlgorithmControlOpen = true;
-            bool isAlgorithmResultOpen = false;
+            bool isAlgorithmResultOpen = true;
+            bool isInfoWindowlOpen = true;
 
             // 3d scene state
             bool showGrid = true;
@@ -75,7 +75,7 @@ namespace MinViz2024
 
             // algos
             var selectedAlgos = new bool[2] { false, false };
-            float solutionsPerSecond = 1;
+            int solutionsPerSecond = 1;
 
             NNH NNH;
 
@@ -91,8 +91,9 @@ namespace MinViz2024
             var results = new List<Algo.Result>();
             int showIdx = -1;
             int replayIdx = -1;
+            int replayFrameIdx = 0;
 
-            UInt64 counter = 0;
+            uint counter = 0;
 
             while (!Raylib.WindowShouldClose())
             {
@@ -106,7 +107,7 @@ namespace MinViz2024
                 DrawSectors(sectors, selected);
                 DrawPoints(points, radius, selected);
                 ShowSelectedResult(showIdx, results);
-                ReplaySelectedResult(replayIdx, results, counter, solutionsPerSecond);
+                ReplaySelectedResult(replayIdx, ref replayFrameIdx, results, ref counter, solutionsPerSecond);
 
                 Raylib.EndMode3D();
 
@@ -117,7 +118,7 @@ namespace MinViz2024
                 Raylib.ClearBackground(Color.DarkGray);
 
                 rlImGui.Begin();
-               
+
                 // 3D View window with size constraints
                 ImGui.SetNextWindowSizeConstraints(
                     new Vector2(200, 200),    // Minimum size
@@ -125,14 +126,21 @@ namespace MinViz2024
                 );
                 ImGuiWindowFlags viewportFlags = ImGuiWindowFlags.None;
                 Draw3dView(ref is3DViewportOpen, viewportFlags, ref camera, (IntPtr)renderTexture.Texture.Id);
-         
 
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(10, 620), ImGuiCond.Once);
                 ImGui.SetNextWindowSize(new Vector2(300, 90), ImGuiCond.Once);
 
                 ImGuiWindowFlags sceneControlFlags = ImGuiWindowFlags.None;
-                DrawSceneControls(ref isSceneControlsOpen, sceneControlFlags, screenWidth, ref showGrid);
+                DrawSceneControls(ref isSceneControlsOpen, sceneControlFlags, screenWidth, ref showGrid, ref camera, ref radius);
+
+                // draw information matrix 
+                // Controls window with fixed size
+                ImGui.SetNextWindowPos(new Vector2(320, 620), ImGuiCond.Once);
+                ImGui.SetNextWindowSize(new Vector2(490, 90), ImGuiCond.Once);
+
+                ImGuiWindowFlags infoWindowFlags = ImGuiWindowFlags.None;
+                DrawInfoView(ref isInfoWindowlOpen, infoWindowFlags, showIdx, replayIdx, results, replayFrameIdx);
 
                 // Controls window with fixed size
                 ImGui.SetNextWindowPos(new Vector2(screenWidth - 460, 10), ImGuiCond.Once);
@@ -257,13 +265,13 @@ namespace MinViz2024
                 if (ImGui.Begin("Algorithm Results", ref isAlgorithmResultOpen, resultFlags))
                 {
                     ImGui.SeparatorText("Replay Settings");
-                    ImGui.SliderFloat("Replay Speed", ref solutionsPerSecond, 1, 15);
+                    ImGui.SliderInt("Replay Speed", ref solutionsPerSecond, 1, 20);
                     ImGui.Separator();
 
                     for (int i = results.Count - 1; i >= 0; i--)
                     {
                         var res = results[i];
-                        if(res.Distances.Count < 1)
+                        if (res.Distances.Count < 1)
                         {
                             // cleanup dead results.
                             results.RemoveAt(i);
@@ -279,20 +287,18 @@ namespace MinViz2024
                             showIdx = showIdx == i ? -1 : i;
                         }
                         ImGui.SameLine();
-                        if (ImGui.Button($"Info[{i}]"))
-                        {
-                            Console.WriteLine("Info Test!");
-                        }
-                        ImGui.SameLine();
-                        if (ImGui.Button(replayIdx != i ? $"Start[{i}]": $"Stop[{i}]"))
+                        if (ImGui.Button(replayIdx != i ? $"Start[{i}]" : $"Stop[{i}]"))
                         {
                             // disable show feature
                             showIdx = -1;
+                            replayFrameIdx = 0;
                             replayIdx = replayIdx == i ? -1 : i;
                         }
                         ImGui.SameLine();
                         if (ImGui.Button($"X[{i}]"))
                         {
+                            replayIdx = -1;
+                            showIdx = -1;
                             results.RemoveAt(i);
                         }
                         ImGui.Separator();
@@ -310,31 +316,136 @@ namespace MinViz2024
             Raylib.CloseWindow();
         }
 
-        private static void ReplaySelectedResult(int replayIdx, List<Algo.Result> results, ulong counter, float solutionsPerSecond)
+        private static void DrawInfoView(ref bool isInfoWindowlOpen, ImGuiWindowFlags infoWindowFlags, int showIdx, int replayIdx, List<Algo.Result> results, int replayFrameIdx)
         {
-            throw new NotImplementedException();
+            if (ImGui.Begin("Information View", ref isInfoWindowlOpen, infoWindowFlags))
+            {
+                int showInfo = Math.Max(showIdx, replayIdx);
+                if (showInfo < 0)
+                {
+                    return;
+                }
+
+                var res = results[showInfo];
+                var pheroCount = res.PheromoneMatrix.Count;
+                var pheroMatrix = res.PheromoneMatrix;
+                ImGui.SeparatorText("Phermone Matrix");
+                if (pheroCount > 0 && ImGui.BeginTable("PheroTable", pheroMatrix[0].GetLength(0) + 1,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+                {       
+                    int toShow = replayIdx >= 0 ? replayFrameIdx : pheroCount - 1;
+                    int size = pheroMatrix[toShow].GetLength(0);
+
+                    ImGui.TableSetupColumn(""); // Empty corner cell
+                    for (int col = 0; col < size; col++)
+                    {
+                        ImGui.TableSetupColumn($"{col}");
+                    }
+                    ImGui.TableHeadersRow();
+
+                    for (int row = 0; row < size; row++)
+                    {
+                        ImGui.TableNextRow();
+
+                        // Draw row header
+                        ImGui.TableSetColumnIndex(0);
+                        ImGui.Text($"{row}");
+                        for (int col = 0; col < size; col++)
+                        {
+                            ImGui.TableSetColumnIndex(col + 1);
+                            if (col >= row)
+                            {
+                                ImGui.Text(pheroMatrix[toShow][row, col].ToString("F3"));
+                            }
+                        }
+                    }
+                    ImGui.EndTable();
+                }
+
+                var distMatrix = res.DistanceMatrix;
+                ImGui.SeparatorText("Distance Matrix");
+                if (distMatrix != null && ImGui.BeginTable("DistTable", distMatrix.GetLength(0) + 1,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+                {
+                    int size = distMatrix.GetLength(0);
+                    ImGui.TableSetupColumn(""); // Empty corner cell
+                    for (int col = 0; col < size; col++)
+                    {
+                        ImGui.TableSetupColumn($"{col}");
+                    }
+                    ImGui.TableHeadersRow();
+
+                    for (int row = 0; row < size; row++)
+                    {
+                        ImGui.TableNextRow();
+
+                        // Draw row header
+                        ImGui.TableSetColumnIndex(0);
+                        ImGui.Text($"{row}");
+                        for (int col = 0; col < size; col++)
+                        {
+                            ImGui.TableSetColumnIndex(col + 1);
+                            if (col >= row)
+                            {
+                                ImGui.Text(distMatrix[row, col].ToString("F3"));
+                            }
+                        }
+                    }
+                    ImGui.EndTable();
+                }
+            }
+            ImGui.End();
         }
 
-        private static void DrawSceneControls(ref bool isSceneControlsOpen, ImGuiWindowFlags sceneControlFlags, int screenWidth, ref bool showGrid)
+        private static void ReplaySelectedResult(int replayIdx, ref int replayFrameIdx, List<Algo.Result> results, ref uint counter, int solutionsPerSecond)
+        {
+            if (replayIdx < 0 || replayIdx >= results.Count)
+            {
+                replayFrameIdx = 0;
+                return;
+            }
+
+            int delta = 60 / solutionsPerSecond;
+            int cn = results[replayIdx].Solutions.Count;
+
+            if (counter % delta == 0)
+            {
+                if (replayFrameIdx != cn - 1)
+                {
+                    replayFrameIdx++;
+                }
+            }
+
+            DrawSolutionPath(results[replayIdx].Solutions[replayFrameIdx], 0, results);
+
+            counter++;
+        }
+
+        private static void DrawSceneControls(ref bool isSceneControlsOpen, ImGuiWindowFlags sceneControlFlags, int screenWidth, ref bool showGrid, ref Camera3D camera, ref float radius)
         {
             if (ImGui.Begin("Scene Controls", ref isSceneControlsOpen, sceneControlFlags))
             {
+                ImGui.SeparatorText("3D View Settings");
+                ImGui.InputFloat("Point Size", ref radius);
+                ImGui.InputFloat3("Cam Target", ref camera.Target);
+                if (ImGui.Button("Toggle Grid"))
+                {
+                    showGrid = !showGrid;
+                }
                 // Window control buttons
+                ImGui.SeparatorText("Window Settings");
                 if (ImGui.Button("Reset Window Positions"))
                 {
                     ImGui.SetWindowPos("3D View", new Vector2(10, 10));
                     ImGui.SetWindowSize("3D View", new Vector2(800, 600));
                     ImGui.SetWindowPos("Scene Controls", new Vector2(10, 620));
                     ImGui.SetWindowSize("Scene Controls", new Vector2(300, 90));
+                    ImGui.SetWindowPos("Information View", new Vector2(320, 620));
+                    ImGui.SetWindowSize("Information View", new Vector2(490, 90));
                     ImGui.SetWindowPos("Algorithm Controls", new Vector2(screenWidth - 460, 10));
                     ImGui.SetWindowSize("Algorithm Controls", new Vector2(450, 560));
                     ImGui.SetWindowPos("Algorithm Results", new Vector2(screenWidth - 460, 580));
                     ImGui.SetWindowSize("Algorithm Results", new Vector2(450, 130));
-                }
-
-                if (ImGui.Button("Toggle Grid"))
-                {
-                    showGrid = !showGrid;
                 }
             }
             ImGui.End();
@@ -378,16 +489,21 @@ namespace MinViz2024
             if (showIdx >= 0 && showIdx < results.Count)
             {
                 var best = results[showIdx].Solutions.Last();
-                for (int i = 0; i < best.Count - 1; i++)
-                {
-                    Raylib.DrawLine3D(
-                        results[showIdx].Points[best[i]],
-                        results[showIdx].Points[best[i + 1]],
-                        Color.Green);
-                }
-                // return to start
-                Raylib.DrawLine3D(results[showIdx].Points[best[0]], results[showIdx].Points[best[^1]], Color.Green);
+                DrawSolutionPath(best, showIdx, results);
             }
+        }
+
+        private static void DrawSolutionPath(List<int> path, int resultIdx, List<Algo.Result> results)
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                Raylib.DrawLine3D(
+                    results[resultIdx].Points[path[i]],
+                    results[resultIdx].Points[path[i + 1]],
+                    Color.Green);
+            }
+            // return to start
+            Raylib.DrawLine3D(results[resultIdx].Points[path[0]], results[resultIdx].Points[path[^1]], Color.Green);
         }
 
         private static void DrawSectors(List<Algo.Sector> sectors, List<bool> selected)
